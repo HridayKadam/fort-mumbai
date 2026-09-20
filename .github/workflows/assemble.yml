@@ -1,0 +1,44 @@
+name: assemble
+on:
+  push:
+    paths:
+      - tmp/GO
+jobs:
+  assemble:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Assemble and commit
+        run: |
+          set -euo pipefail
+          mkdir -p src data/mumbai
+          python3 << 'PY'
+          import base64, gzip, hashlib, pathlib
+          def assemble(prefix, dest, expect):
+              parts = sorted(pathlib.Path('tmp/gz').glob(prefix + '.p*'))
+              raw = b''.join(p.read_bytes() for p in parts)
+              data = gzip.decompress(base64.b64decode(raw))
+              got = hashlib.sha256(data).hexdigest()
+              if got != expect:
+                  raise SystemExit(f'{dest} sha mismatch {got} != {expect}')
+              pathlib.Path(dest).write_bytes(data)
+              print(dest, len(data), got)
+          assemble('blueprint', 'src/blueprint.js', '81c7ab0fcb375d4ab472d44709d0ce7a563ad2054ad3bc9563888ea3fcdce0c2')
+          assemble('sitejs', 'src/site.js', 'a61d561d38190c718430933d7b9b24b4b4c16be615ef98c884d2d9b7993233a9')
+          assemble('sitejson', 'data/mumbai/site.json', 'a6c6169251f456dc2059c7d9003b19e861ee751b4b2d48d03c104514a24ee6bc')
+          assemble('buildings', 'data/mumbai/buildings.json', 'cba12dd92efed58b0b1157d70280168629740125bab262061d013bca6fc13443')
+          terrain = ('[' + ','.join(['0.0']*9216) + ']').encode()
+          if hashlib.sha256(terrain).hexdigest() != '1e1d29beaf9f8fe16a72fb3509dbb9605d27a576a22eab64d151e7d5f7d4b23b':
+              raise SystemExit('terrain sha mismatch')
+          pathlib.Path('data/mumbai/terrain.json').write_bytes(terrain)
+          print('terrain', len(terrain))
+          PY
+          rm -rf tmp
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git commit -m 'Add minified Fort Mumbai viewer sources'
+          git push
