@@ -17,10 +17,6 @@ const requestedSite = params.get('site')
   || pathSite
   || 'mumbai';
 export const siteName = requestedSite === 'avon' ? 'avon-extended' : requestedSite;
-// Published miniatures stream by default; authoring and unprepared sites need
-// the original blueprints. ?stream=0 explicitly selects the original loader.
-// Older Safari and HTTP previews over a phone's LAN may lack the decoder or
-// secure-context checksum API. They can still use the original scene builder.
 export const streamEnabled = useStreaming(params,siteName) && typeof Worker==='function'
   && typeof DecompressionStream==='function' && !!globalThis.crypto?.subtle;
 document.getElementById('loading')?.setAttribute('data-loader',streamEnabled?'streaming':'original');
@@ -30,10 +26,22 @@ export const siteRequest = fetch(streamEnabled ? `${streamDirectory}/manifest.js
     if (!response.ok) throw new Error(streamEnabled ? `No prepared streaming map for ${siteName}` : `no site.json for ${siteName}`);
     return response.json();
   })
+  .then(async data => {
+    const dir = `./data/${encodeURIComponent(siteName)}`;
+    if (data.buildings == null) {
+      const extra = await fetch(`${dir}/buildings.json`);
+      if (!extra.ok) throw new Error(`no buildings.json for ${siteName}`);
+      data.buildings = await extra.json();
+    }
+    if (data.terrain && !data.terrain.values) {
+      const extra = await fetch(`${dir}/terrain.json`);
+      if (!extra.ok) throw new Error(`no terrain.json for ${siteName}`);
+      data.terrain.values = await extra.json();
+    }
+    return data;
+  })
   .then(data => {
     if (streamEnabled) return data;
-    // Discover image-backed signs before scene construction. Matching Three's
-    // anonymous CORS mode lets its ImageLoader consume these same requests.
     const images = new Set();
     function preload(value) {
       if (!value || typeof value !== 'object') return;
@@ -61,8 +69,7 @@ let surfaceRequest = useSurfaces ? siteRequest.then(({ data }) => data
 export async function takeSurfaceAsset(data) {
   if (!useSurfaces) return null;
   const request = surfaceRequest;
-  surfaceRequest = null; // release the decoded payload after the build consumes it
+  surfaceRequest = null;
   const asset = await (request ?? loadSurfaceAsset(data, data.seed ?? siteName, directory));
-  // Console rebuilds and draft previews may have changed the map since prefetch.
   return asset && asset.key === await surfaceKey(data, data.seed ?? siteName) ? asset.buffer : null;
 }
