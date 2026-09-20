@@ -1,0 +1,8 @@
+{
+  "name": "fort-mumbai",
+  "private": true,
+  "description": "Hriday's Fort, Mumbai miniature — static Three.js viewer",
+  "scripts": {
+    "build": "node -e \"console.log('static viewer; no build')\""
+  }
+}
