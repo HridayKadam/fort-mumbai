@@ -19,7 +19,8 @@ jobs:
           import base64, gzip, hashlib, pathlib
           def assemble(prefix, dest, expect):
               parts = sorted(pathlib.Path('tmp/gz').glob(prefix + '.p*'))
-              raw = b''.join(p.read_bytes() for p in parts)
+              print(prefix, [p.name for p in parts])
+              raw = b''.join(p.read_bytes().rstrip(b'\r\n') for p in parts)
               data = gzip.decompress(base64.b64decode(raw))
               got = hashlib.sha256(data).hexdigest()
               if got != expect:
